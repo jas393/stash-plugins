@@ -1,4 +1,4 @@
-# stash-plugins
+## stash-plugins
 
 For each of these plugins, distribution bars are clickable and show performers wich are also clickable. Favorites performers are marked in pink, and hovering on top of them show their profile pic. You can also filter men/women/other when applicable.
 
