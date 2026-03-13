@@ -1,0 +1,6 @@
+name: "Body Statistics"
+description: "Shows min, max, and average height and weight from all performers"
+version: 1.0
+ui:
+  javascript:
+    - body_stats.js
