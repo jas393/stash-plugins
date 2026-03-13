@@ -1,0 +1,6 @@
+name: "Rating Statistics"
+description: "Shows ranked list of performer ratings with clickable performers"
+version: 1.0
+ui:
+  javascript:
+    - rating_stats.js
