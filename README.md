@@ -4,6 +4,8 @@ Various plugins adding additionnal statistics on the stats page of stash.
 
 For each of these plugins, distribution bars are clickable and show performers wich are also clickable. Favorites performers are marked in pink, and hovering on top of them show their profile pic. You can also filter men/women/other when applicable.
 
+Everything is self contained in stash, no need to run anything else.
+
 ## Body Stats
 
 Add distribution graphs for weight, height, BMI 5Body Mass Index) and body type (based on Bust-waist-hip measurements) for performers. 
