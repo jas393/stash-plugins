@@ -1,0 +1,6 @@
+name: "Performer Stats Lists"
+description: "Shows ranked lists of performer attributes (ethnicity, hair color, eye color)"
+version: 1.0
+ui:
+  javascript:
+    - performer_stats.js
