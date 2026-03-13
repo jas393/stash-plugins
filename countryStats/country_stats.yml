@@ -1,0 +1,6 @@
+name: "Country Statistics"
+description: "Shows performer distribution by country with percentage bars and country flags"
+version: 1.0
+ui:
+  javascript:
+    - country_stats.js
