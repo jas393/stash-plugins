@@ -1,4 +1,4 @@
-// scene_rating_stats.js - Rating statistics with double-height bars and flags in month titles
+// scene_rating_stats.js - Rating statistics with configurable timeline and age grouping
 
 (function() {
     // ==================== STRICT PAGE DETECTION ====================
@@ -41,6 +41,11 @@
 
     console.log("SceneRatingStats: Loading on stats page");
 
+    // ==================== GROUPING STATE ====================
+    
+    let timelineGrouping = 1; // Number of months per bar (1 = monthly, 3 = quarterly, 6 = half-year, 12 = yearly)
+    let ageGrouping = 1; // Number of years per bar (1, 2, 3, 5, 10)
+
     // ==================== GLOBAL TOOLTIP ====================
     
     if (!document.getElementById('scene-rating-stats-tooltip')) {
@@ -54,7 +59,7 @@
             background: var(--card-bg, #1a1a1a);
             border: 2px solid var(--border-color, #444);
             border-radius: 8px;
-            padding: 10px;
+            padding: 15px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.8);
             width: 350px;
             max-width: 90vw;
@@ -62,15 +67,17 @@
         `;
         document.body.appendChild(tooltipContainer);
 
+        // Image container - larger to show full image properly
         const imageContainer = document.createElement('div');
         imageContainer.id = 'scene-rating-stats-tooltip-image-container';
         imageContainer.style.cssText = `
-            width: 100%;
-            margin-bottom: 8px;
+            width: 320px;
+            height: 200px;
+            margin-bottom: 12px;
             display: flex;
             justify-content: center;
             background: var(--card-bg-alt, #2d2d2d);
-            border-radius: 4px;
+            border-radius: 6px;
             overflow: hidden;
         `;
         tooltipContainer.appendChild(imageContainer);
@@ -79,7 +86,7 @@
         tooltipImage.id = 'scene-rating-stats-tooltip-image';
         tooltipImage.style.cssText = `
             max-width: 100%;
-            max-height: 300px;
+            max-height: 100%;
             width: auto;
             height: auto;
             object-fit: contain;
@@ -91,7 +98,7 @@
         tooltipFallback.id = 'scene-rating-stats-tooltip-fallback';
         tooltipFallback.style.cssText = `
             width: 100%;
-            height: 150px;
+            height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -105,48 +112,57 @@
         tooltipFallback.textContent = 'No image available';
         imageContainer.appendChild(tooltipFallback);
 
+        // Title
         const tooltipTitle = document.createElement('div');
         tooltipTitle.id = 'scene-rating-stats-tooltip-title';
         tooltipTitle.style.cssText = `
             text-align: center;
             color: #ffd700;
             font-weight: bold;
-            font-size: 1em;
-            margin-bottom: 5px;
+            font-size: 1.1em;
+            margin-bottom: 8px;
             word-wrap: break-word;
         `;
         tooltipContainer.appendChild(tooltipTitle);
 
+        // Date and Rating in a flex row
+        const infoRow = document.createElement('div');
+        infoRow.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color, #3d3d3d);
+        `;
+        tooltipContainer.appendChild(infoRow);
+
         const tooltipDate = document.createElement('div');
         tooltipDate.id = 'scene-rating-stats-tooltip-date';
         tooltipDate.style.cssText = `
-            text-align: center;
             color: #4a9eff;
-            font-size: 0.9em;
-            margin-bottom: 5px;
+            font-size: 0.95em;
         `;
-        tooltipContainer.appendChild(tooltipDate);
+        infoRow.appendChild(tooltipDate);
 
         const tooltipRating = document.createElement('div');
         tooltipRating.id = 'scene-rating-stats-tooltip-rating';
         tooltipRating.style.cssText = `
-            text-align: center;
             color: #ffd700;
-            font-size: 0.9em;
-            margin-bottom: 8px;
-            padding-bottom: 5px;
-            border-bottom: 1px solid var(--border-color, #3d3d3d);
+            font-size: 0.95em;
+            font-weight: bold;
         `;
-        tooltipContainer.appendChild(tooltipRating);
+        infoRow.appendChild(tooltipRating);
 
+        // Description
         const tooltipDescription = document.createElement('div');
         tooltipDescription.id = 'scene-rating-stats-tooltip-description';
         tooltipDescription.style.cssText = `
             text-align: left;
             color: #ccc;
-            font-size: 0.85em;
-            margin-bottom: 8px;
-            padding: 6px;
+            font-size: 0.9em;
+            margin-bottom: 12px;
+            padding: 8px;
             background: var(--card-bg-alt, #2d2d2d);
             border-radius: 4px;
             max-height: 100px;
@@ -156,33 +172,478 @@
         `;
         tooltipContainer.appendChild(tooltipDescription);
 
+        // Tags
         const tooltipTags = document.createElement('div');
         tooltipTags.id = 'scene-rating-stats-tooltip-tags';
         tooltipTags.style.cssText = `
             text-align: left;
             color: #888;
-            font-size: 0.8em;
-            margin-bottom: 8px;
+            font-size: 0.85em;
+            margin-bottom: 12px;
             max-height: 80px;
             overflow-y: auto;
-            padding: 4px;
+            padding: 6px;
             background: var(--card-bg-alt, #2d2d2d);
             border-radius: 4px;
         `;
         tooltipContainer.appendChild(tooltipTags);
 
+        // Performers
         const tooltipPerformers = document.createElement('div');
         tooltipPerformers.id = 'scene-rating-stats-tooltip-performers';
         tooltipPerformers.style.cssText = `
             text-align: left;
             color: #888;
-            font-size: 0.8em;
-            max-height: 120px;
+            font-size: 0.85em;
+            max-height: 150px;
             overflow-y: auto;
-            padding: 4px;
+            padding: 6px;
             border-top: 1px solid var(--border-color, #3d3d3d);
         `;
         tooltipContainer.appendChild(tooltipPerformers);
+    }
+
+    // ==================== HELPER FUNCTIONS ====================
+
+    // Helper function to get country flag emoji
+    function getCountryFlag(countryCode) {
+        if (!countryCode) return null;
+        
+        // Handle common country names and convert to codes
+        const countryMap = {
+            // North America
+    'USA': 'US',
+    'United States': 'US',
+    'United States of America': 'US',
+    'America': 'US',
+    'US': 'US',
+    'Canada': 'CA',
+    'CA': 'CA',
+    'Mexico': 'MX',
+    'MX': 'MX',
+    
+    // UK and Ireland
+    'UK': 'GB',
+    'United Kingdom': 'GB',
+    'England': 'GB',
+    'Scotland': 'GB',
+    'Wales': 'GB',
+    'Northern Ireland': 'GB',
+    'Great Britain': 'GB',
+    'GB': 'GB',
+    'Ireland': 'IE',
+    'IE': 'IE',
+    
+    // Western Europe
+    'France': 'FR',
+    'FR': 'FR',
+    'Germany': 'DE',
+    'DE': 'DE',
+    'Italy': 'IT',
+    'IT': 'IT',
+    'Spain': 'ES',
+    'ES': 'ES',
+    'Portugal': 'PT',
+    'PT': 'PT',
+    'Netherlands': 'NL',
+    'NL': 'NL',
+    'Belgium': 'BE',
+    'BE': 'BE',
+    'Switzerland': 'CH',
+    'CH': 'CH',
+    'Austria': 'AT',
+    'AT': 'AT',
+    'Luxembourg': 'LU',
+    'LU': 'LU',
+    'Monaco': 'MC',
+    'MC': 'MC',
+    
+    // Northern Europe
+    'Sweden': 'SE',
+    'SE': 'SE',
+    'Norway': 'NO',
+    'NO': 'NO',
+    'Denmark': 'DK',
+    'DK': 'DK',
+    'Finland': 'FI',
+    'FI': 'FI',
+    'Iceland': 'IS',
+    'IS': 'IS',
+    
+    // Eastern Europe
+    'Poland': 'PL',
+    'PL': 'PL',
+    'Czech Republic': 'CZ',
+    'Czechia': 'CZ',
+    'CZ': 'CZ',
+    'Slovakia': 'SK',
+    'SK': 'SK',
+    'Hungary': 'HU',
+    'HU': 'HU',
+    'Romania': 'RO',
+    'RO': 'RO',
+    'Bulgaria': 'BG',
+    'BG': 'BG',
+    'Russia': 'RU',
+    'RU': 'RU',
+    'Ukraine': 'UA',
+    'UA': 'UA',
+	'Moldova': 'MD',
+    'MD': 'MD',
+    'Belarus': 'BY',
+    'BY': 'BY',
+    
+    // Southern Europe
+    'Greece': 'GR',
+    'GR': 'GR',
+    'Turkey': 'TR',
+    'TR': 'TR',
+    'Cyprus': 'CY',
+    'CY': 'CY',
+    'Malta': 'MT',
+    'MT': 'MT',
+    'Albania': 'AL',
+    'AL': 'AL',
+    'North Macedonia': 'MK',
+    'MK': 'MK',
+    'Serbia': 'RS',
+    'RS': 'RS',
+    'Montenegro': 'ME',
+    'ME': 'ME',
+    'Bosnia and Herzegovina': 'BA',
+    'Bosnia': 'BA',
+    'BA': 'BA',
+    'Croatia': 'HR',
+    'HR': 'HR',
+    'Slovenia': 'SI',
+    'SI': 'SI',
+    
+    // Asia
+    'Japan': 'JP',
+    'JP': 'JP',
+    'China': 'CN',
+    'CN': 'CN',
+    'Taiwan': 'TW',
+    'TW': 'TW',
+    'Hong Kong': 'HK',
+    'HK': 'HK',
+    'Macau': 'MO',
+    'MO': 'MO',
+    'South Korea': 'KR',
+    'Korea': 'KR',
+    'KR': 'KR',
+    'North Korea': 'KP',
+    'KP': 'KP',
+    'Mongolia': 'MN',
+    'MN': 'MN',
+    'India': 'IN',
+    'IN': 'IN',
+    'Pakistan': 'PK',
+    'PK': 'PK',
+    'Bangladesh': 'BD',
+    'BD': 'BD',
+    'Sri Lanka': 'LK',
+    'LK': 'LK',
+    'Nepal': 'NP',
+    'NP': 'NP',
+    'Bhutan': 'BT',
+    'BT': 'BT',
+    'Myanmar': 'MM',
+    'MM': 'MM',
+    'Thailand': 'TH',
+    'TH': 'TH',
+    'Laos': 'LA',
+    'LA': 'LA',
+    'Cambodia': 'KH',
+    'KH': 'KH',
+    'Vietnam': 'VN',
+    'VN': 'VN',
+    'Malaysia': 'MY',
+    'MY': 'MY',
+    'Singapore': 'SG',
+    'SG': 'SG',
+    'Indonesia': 'ID',
+    'ID': 'ID',
+    'Philippines': 'PH',
+    'PH': 'PH',
+    'Brunei': 'BN',
+    'BN': 'BN',
+    'Timor-Leste': 'TL',
+    'TL': 'TL',
+    
+    // Middle East
+    'Israel': 'IL',
+    'IL': 'IL',
+    'Palestine': 'PS',
+    'PS': 'PS',
+    'Jordan': 'JO',
+    'JO': 'JO',
+    'Lebanon': 'LB',
+    'LB': 'LB',
+    'Syria': 'SY',
+    'SY': 'SY',
+    'Iraq': 'IQ',
+    'IQ': 'IQ',
+    'Iran': 'IR',
+    'IR': 'IR',
+    'Saudi Arabia': 'SA',
+    'SA': 'SA',
+    'Yemen': 'YE',
+    'YE': 'YE',
+    'Oman': 'OM',
+    'OM': 'OM',
+    'UAE': 'AE',
+    'United Arab Emirates': 'AE',
+    'AE': 'AE',
+    'Qatar': 'QA',
+    'QA': 'QA',
+    'Kuwait': 'KW',
+    'KW': 'KW',
+    'Bahrain': 'BH',
+    'BH': 'BH',
+    
+    // Africa
+    'South Africa': 'ZA',
+    'ZA': 'ZA',
+    'Egypt': 'EG',
+    'EG': 'EG',
+    'Morocco': 'MA',
+    'MA': 'MA',
+    'Algeria': 'DZ',
+    'DZ': 'DZ',
+    'Tunisia': 'TN',
+    'TN': 'TN',
+    'Libya': 'LY',
+    'LY': 'LY',
+    'Sudan': 'SD',
+    'SD': 'SD',
+    'South Sudan': 'SS',
+    'SS': 'SS',
+    'Eritrea': 'ER',
+    'ER': 'ER',
+    'Ethiopia': 'ET',
+    'ET': 'ET',
+    'Djibouti': 'DJ',
+    'DJ': 'DJ',
+    'Somalia': 'SO',
+    'SO': 'SO',
+    'Kenya': 'KE',
+    'KE': 'KE',
+    'Uganda': 'UG',
+    'UG': 'UG',
+    'Tanzania': 'TZ',
+    'TZ': 'TZ',
+    'Rwanda': 'RW',
+    'RW': 'RW',
+    'Burundi': 'BI',
+    'BI': 'BI',
+    'DR Congo': 'CD',
+    'Democratic Republic of the Congo': 'CD',
+    'CD': 'CD',
+    'Republic of Congo': 'CG',
+    'Congo': 'CG',
+    'CG': 'CG',
+    'Gabon': 'GA',
+    'GA': 'GA',
+    'Equatorial Guinea': 'GQ',
+    'GQ': 'GQ',
+    'Cameroon': 'CM',
+    'CM': 'CM',
+    'Central African Republic': 'CF',
+    'CF': 'CF',
+    'Chad': 'TD',
+    'TD': 'TD',
+    'Nigeria': 'NG',
+    'NG': 'NG',
+    'Niger': 'NE',
+    'NE': 'NE',
+    'Mali': 'ML',
+    'ML': 'ML',
+    'Burkina Faso': 'BF',
+    'BF': 'BF',
+    'Senegal': 'SN',
+    'SN': 'SN',
+    'Gambia': 'GM',
+    'GM': 'GM',
+    'Guinea-Bissau': 'GW',
+    'GW': 'GW',
+    'Guinea': 'GN',
+    'GN': 'GN',
+    'Sierra Leone': 'SL',
+    'SL': 'SL',
+    'Liberia': 'LR',
+    'LR': 'LR',
+    'C��d\'Ivoire': 'CI',
+    'Ivory Coast': 'CI',
+    'CI': 'CI',
+    'Ghana': 'GH',
+    'GH': 'GH',
+    'Togo': 'TG',
+    'TG': 'TG',
+    'Benin': 'BJ',
+    'BJ': 'BJ',
+    'Angola': 'AO',
+    'AO': 'AO',
+    'Zambia': 'ZM',
+    'ZM': 'ZM',
+    'Zimbabwe': 'ZW',
+    'ZW': 'ZW',
+    'Malawi': 'MW',
+    'MW': 'MW',
+    'Mozambique': 'MZ',
+    'MZ': 'MZ',
+    'Madagascar': 'MG',
+    'MG': 'MG',
+    'Comoros': 'KM',
+    'KM': 'KM',
+    'Seychelles': 'SC',
+    'SC': 'SC',
+    'Mauritius': 'MU',
+    'MU': 'MU',
+    'R궮ion': 'RE',
+    'RE': 'RE',
+    'Mayotte': 'YT',
+    'YT': 'YT',
+    'Botswana': 'BW',
+    'BW': 'BW',
+    'Namibia': 'NA',
+    'NA': 'NA',
+    'Eswatini': 'SZ',
+    'Swaziland': 'SZ',
+    'SZ': 'SZ',
+    'Lesotho': 'LS',
+    'LS': 'LS',
+    
+    // South America
+    'Brazil': 'BR',
+    'BR': 'BR',
+    'Argentina': 'AR',
+    'AR': 'AR',
+    'Chile': 'CL',
+    'CL': 'CL',
+    'Uruguay': 'UY',
+    'UY': 'UY',
+    'Paraguay': 'PY',
+    'PY': 'PY',
+    'Bolivia': 'BO',
+    'BO': 'BO',
+    'Peru': 'PE',
+    'PE': 'PE',
+    'Ecuador': 'EC',
+    'EC': 'EC',
+    'Colombia': 'CO',
+    'CO': 'CO',
+    'Venezuela': 'VE',
+    'VE': 'VE',
+    'Guyana': 'GY',
+    'GY': 'GY',
+    'Suriname': 'SR',
+    'SR': 'SR',
+    'French Guiana': 'GF',
+    'GF': 'GF',
+    
+    // Central America & Caribbean
+    'Mexico': 'MX',
+    'MX': 'MX',
+    'Guatemala': 'GT',
+    'GT': 'GT',
+    'Belize': 'BZ',
+    'BZ': 'BZ',
+    'El Salvador': 'SV',
+    'SV': 'SV',
+    'Honduras': 'HN',
+    'HN': 'HN',
+    'Nicaragua': 'NI',
+    'NI': 'NI',
+    'Costa Rica': 'CR',
+    'CR': 'CR',
+    'Panama': 'PA',
+    'PA': 'PA',
+    'Cuba': 'CU',
+    'CU': 'CU',
+    'Jamaica': 'JM',
+    'JM': 'JM',
+    'Haiti': 'HT',
+    'HT': 'HT',
+    'Dominican Republic': 'DO',
+    'DO': 'DO',
+    'Puerto Rico': 'PR',
+    'PR': 'PR',
+    'Bahamas': 'BS',
+    'BS': 'BS',
+    'Trinidad and Tobago': 'TT',
+    'TT': 'TT',
+    'Barbados': 'BB',
+    'BB': 'BB',
+    
+    // Oceania
+    'Australia': 'AU',
+    'AU': 'AU',
+    'New Zealand': 'NZ',
+    'NZ': 'NZ',
+    'Papua New Guinea': 'PG',
+    'PG': 'PG',
+    'Fiji': 'FJ',
+    'FJ': 'FJ',
+    'Solomon Islands': 'SB',
+    'SB': 'SB',
+    'Vanuatu': 'VU',
+    'VU': 'VU',
+    'New Caledonia': 'NC',
+    'NC': 'NC',
+    'French Polynesia': 'PF',
+    'PF': 'PF',
+    'Samoa': 'WS',
+    'WS': 'WS',
+    'Tonga': 'TO',
+    'TO': 'TO',
+    'Kiribati': 'KI',
+    'KI': 'KI',
+    'Micronesia': 'FM',
+    'FM': 'FM',
+    'Marshall Islands': 'MH',
+    'MH': 'MH',
+    'Palau': 'PW',
+    'PW': 'PW',
+    'Nauru': 'NR',
+    'NR': 'NR',
+    'Tuvalu': 'TV',
+    'TV': 'TV',
+    
+    // Special Cases
+    'Soviet Union': 'SU',
+    'SU': 'SU',
+    'Czechoslovakia': 'CS',
+    'CS': 'CS',
+    'East Germany': 'DD',
+    'DD': 'DD',
+    'West Germany': 'DE',
+    'Yugoslavia': 'YU',
+    'YU': 'YU',
+    'Serbia and Montenegro': 'CS',
+    'Unknown': null,
+    'Not Set': null
+        };
+
+        let normalized = countryCode.trim();
+        if (countryMap[normalized]) return countryMap[normalized];
+        
+        const upper = normalized.toUpperCase();
+        if (countryMap[upper]) return countryMap[upper];
+        
+        return null;
+    }
+
+    function getFlagEmoji(countryCode) {
+        if (!countryCode) return '';
+        
+        // Convert country code to uppercase
+        const code = countryCode.toUpperCase();
+        
+        // Convert to flag emoji (regional indicator symbols)
+        const offset = 127397;
+        const chars = [...code].map(c => String.fromCodePoint(c.charCodeAt(0) + offset));
+        return chars.join('');
     }
 
     // ==================== CLEANUP ON NAVIGATION ====================
@@ -316,97 +777,6 @@
 
     // ==================== MAIN PLUGIN FUNCTIONS ====================
 
-    // Helper function to get country flag emoji
-    function getCountryFlag(countryCode) {
-        if (!countryCode) return null;
-        
-        // Handle common country names and convert to codes
-        const countryMap = {
-            'USA': 'US',
-            'United States': 'US',
-            'America': 'US',
-            'UK': 'GB',
-            'United Kingdom': 'GB',
-            'England': 'GB',
-            'Canada': 'CA',
-            'France': 'FR',
-            'Germany': 'DE',
-            'Italy': 'IT',
-            'Spain': 'ES',
-            'Japan': 'JP',
-            'China': 'CN',
-            'Russia': 'RU',
-            'Australia': 'AU',
-            'Brazil': 'BR',
-            'India': 'IN',
-            'Mexico': 'MX',
-            'Netherlands': 'NL',
-            'Sweden': 'SE',
-            'Denmark': 'DK',
-            'Norway': 'NO',
-            'Finland': 'FI',
-            'Poland': 'PL',
-            'Czech Republic': 'CZ',
-            'Hungary': 'HU',
-            'Greece': 'GR',
-            'Turkey': 'TR',
-            'Israel': 'IL',
-            'South Africa': 'ZA',
-            'Argentina': 'AR',
-            'Colombia': 'CO',
-            'Venezuela': 'VE',
-            'Portugal': 'PT',
-            'Belgium': 'BE',
-            'Switzerland': 'CH',
-            'Austria': 'AT',
-            'Ireland': 'IE',
-            'Scotland': 'GB-SCT',
-            'Wales': 'GB-WLS',
-            'New Zealand': 'NZ'
-        };
-
-        // Try to get country code
-        let code = countryCode.toUpperCase().trim();
-        
-        // Check if it's already a 2-letter code
-        if (code.length === 2) {
-            return code.toUpperCase();
-        }
-        
-        // Look up in map
-        if (countryMap[code]) {
-            return countryMap[code];
-        }
-        
-        // Check if it's a common variation
-        const variations = {
-            'UNITED STATES': 'US',
-            'UNITED KINGDOM': 'GB',
-            'CZECHIA': 'CZ',
-            'SOUTH KOREA': 'KR',
-            'NORTH KOREA': 'KP',
-            'UAE': 'AE',
-            'SAUDI ARABIA': 'SA',
-            'SOUTH AFRICA': 'ZA',
-            'NEW ZEALAND': 'NZ'
-        };
-        
-        return variations[code] || null;
-    }
-
-    // Helper function to convert country code to flag emoji
-    function getFlagEmoji(countryCode) {
-        if (!countryCode) return '';
-        
-        // Convert country code to uppercase
-        const code = countryCode.toUpperCase();
-        
-        // Convert to flag emoji (regional indicator symbols)
-        const offset = 127397;
-        const chars = [...code].map(c => String.fromCodePoint(c.charCodeAt(0) + offset));
-        return chars.join('');
-    }
-
     async function addSceneRatingStats(container) {
         if (!isStatsPage()) {
             removePlugin();
@@ -440,7 +810,7 @@
         }
 
         try {
-            // First get all performers with their country and birthdate
+            // First get all performers for age calculation
             const performersResponse = await fetch('/graphql', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -452,6 +822,7 @@
                             birthdate
                             country
                             image_path
+                            favorite
                         }
                     }`
                 })
@@ -460,10 +831,10 @@
             const performersResult = await performersResponse.json();
             const performers = performersResult.data?.allPerformers || [];
 
-            // Create maps for performer data
+            // Create a map of performer birthdates and countries
             const performerBirthdates = new Map();
             const performerCountries = new Map();
-            const performerNames = new Map();
+            const performerFavorites = new Map();
             
             performers.forEach(p => {
                 if (p.birthdate) {
@@ -472,7 +843,7 @@
                 if (p.country) {
                     performerCountries.set(p.id, p.country);
                 }
-                performerNames.set(p.id, p.name);
+                performerFavorites.set(p.id, p.favorite || false);
             });
 
             // Now get scenes with their performers and tags
@@ -546,6 +917,7 @@
                         
                         const country = performerCountries.get(p.id) || null;
                         const countryCode = country ? getCountryFlag(country) : null;
+                        const favorite = performerFavorites.get(p.id) || false;
                         
                         return {
                             id: p.id,
@@ -554,9 +926,8 @@
                             age: age,
                             country: country,
                             countryCode: countryCode,
-                            sceneId: s.id,
-                            sceneTitle: s.title,
-                            sceneDate: sceneDateStr
+                            countryFlag: countryCode ? getFlagEmoji(countryCode) : null,
+                            favorite: favorite
                         };
                     }) || [];
                     
@@ -598,11 +969,11 @@
         // Process rating data with 0.5-point intervals
         const ratingData = processRatingData(scenes);
         
-        // Process monthly timeline with zero months
-        const monthlyData = processMonthlyDataWithZeros(scenes);
+        // Process monthly timeline with zero months (using current grouping)
+        const monthlyData = processMonthlyDataWithZeros(scenes, timelineGrouping);
         
-        // Process age distribution with one-year intervals
-        const ageData = processAgeDataWithZeros(scenes);
+        // Process age distribution with configurable grouping and zero bars
+        const ageData = processAgeDataWithGroupingAndZeros(scenes, ageGrouping);
         
         // Calculate statistics
         const validRatings = scenes.filter(s => s.rating5 !== null).map(s => s.rating5);
@@ -616,6 +987,23 @@
             average = validRatings.reduce((a, b) => a + b, 0) / totalRated;
             average = Math.round(average * 10) / 10;
         }
+
+        // Timeline grouping options
+        const timelineOptions = [
+            { value: 1, label: 'Monthly' },
+            { value: 3, label: 'Quarterly' },
+            { value: 6, label: 'Half-year' },
+            { value: 12, label: 'Yearly' }
+        ];
+
+        // Age grouping options
+        const ageOptions = [
+            { value: 1, label: '1 year' },
+            { value: 2, label: '2 years' },
+            { value: 3, label: '3 years' },
+            { value: 5, label: '5 years' },
+            { value: 10, label: '10 years' }
+        ];
 
         const html = `
             <div style="background: var(--card-bg, #2d2d2d); border-radius: 6px; overflow: hidden;">
@@ -643,12 +1031,25 @@
                         </div>
                     </div>
 
-                    <!-- Horizontal Timeline with Stacked Scenes (Double Height) -->
+                    <!-- Horizontal Timeline with Stacked Scenes -->
                     <div style="margin-bottom: 25px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h4 style="margin: 0; color: var(--text-color, #e0e0e0); font-size: 0.95rem;">
-                                <i class="fa fa-calendar"></i> Scenes Timeline
-                            </h4>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px;">
+                            <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                                <h4 style="margin: 0; color: var(--text-color, #e0e0e0); font-size: 0.95rem;">
+                                    <i class="fa fa-calendar"></i> Scenes Timeline
+                                </h4>
+                                
+                                <!-- Timeline Grouping Option -->
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="color: #888; font-size: 0.8em;">Group by:</span>
+                                    <select id="timeline-grouping-select" style="padding: 3px 6px; background: var(--card-bg, #2d2d2d); color: var(--text-color, #e0e0e0); border: 1px solid var(--border-color, #4d4d4d); border-radius: 4px; font-size: 0.8em;">
+                                        ${timelineOptions.map(opt => 
+                                            `<option value="${opt.value}" ${timelineGrouping === opt.value ? 'selected' : ''}>${opt.label}</option>`
+                                        ).join('')}
+                                    </select>
+                                </div>
+                            </div>
+                            
                             <div style="display: flex; gap: 5px;">
                                 <button class="btn btn-mini btn-primary" onclick="toggleAllMonths(true)" style="padding: 2px 8px; font-size: 0.8em;">Expand All</button>
                                 <button class="btn btn-mini btn-secondary" onclick="toggleAllMonths(false)" style="padding: 2px 8px; font-size: 0.8em;">Collapse All</button>
@@ -660,18 +1061,31 @@
                             ${generateTimelineStats(monthlyData, scenesWithDates)}
                         </div>
 
-                        <!-- Horizontal Timeline with Stacked Scene Names (Double Height) -->
-                        <div style="margin-bottom: 8px; overflow-x: auto; max-height: 500px; overflow-y: auto;">
+                        <!-- Horizontal Timeline with Stacked Scene Names -->
+                        <div style="margin-bottom: 8px; overflow-x: auto; max-height: 400px; overflow-y: auto;">
                             ${generateTimelineWithScenes(monthlyData)}
                         </div>
                     </div>
 
-                    <!-- Age Distribution Graph - One Year Intervals (Double Height) -->
+                    <!-- Age Distribution Graph with Configurable Grouping and Zero Bars -->
                     <div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h4 style="margin: 0; color: var(--text-color, #e0e0e0); font-size: 0.95rem;">
-                                <i class="fa fa-users" style="color: #4a9eff;"></i> Performer Age Distribution (One-Year Intervals)
-                            </h4>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px;">
+                            <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                                <h4 style="margin: 0; color: var(--text-color, #e0e0e0); font-size: 0.95rem;">
+                                    <i class="fa fa-users" style="color: #4a9eff;"></i> Performer Age Distribution
+                                </h4>
+                                
+                                <!-- Age Grouping Option -->
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="color: #888; font-size: 0.8em;">Group by:</span>
+                                    <select id="age-grouping-select" style="padding: 3px 6px; background: var(--card-bg, #2d2d2d); color: var(--text-color, #e0e0e0); border: 1px solid var(--border-color, #4d4d4d); border-radius: 4px; font-size: 0.8em;">
+                                        ${ageOptions.map(opt => 
+                                            `<option value="${opt.value}" ${ageGrouping === opt.value ? 'selected' : ''}>${opt.label}</option>`
+                                        ).join('')}
+                                    </select>
+                                </div>
+                            </div>
+                            
                             <div style="display: flex; gap: 5px;">
                                 <button class="btn btn-mini btn-primary" onclick="toggleAllAges(true)" style="padding: 2px 8px; font-size: 0.8em;">Expand All</button>
                                 <button class="btn btn-mini btn-secondary" onclick="toggleAllAges(false)" style="padding: 2px 8px; font-size: 0.8em;">Collapse All</button>
@@ -683,22 +1097,42 @@
                             ${generateAgeStats(ageData, totalAgeEntries)}
                         </div>
 
-                        <!-- Age Distribution Bars with Stacked Scenes (Double Height) -->
+                        <!-- Age Distribution Bars with Stacked Scenes and Zero Bars -->
                         <div style="margin-bottom: 8px; overflow-x: auto; max-height: 600px; overflow-y: auto;">
-                            ${generateAgeBarsWithScenes(ageData, totalAgeEntries)}
+                            ${generateAgeBarsWithScenesAndZeros(ageData, totalAgeEntries)}
                         </div>
                     </div>
 
                     <!-- Data Quality Note -->
                     <div style="margin-top: 15px; padding: 6px; background: var(--card-bg-alt, #3d3d3d); border-radius: 4px; text-align: center; color: #888; font-size: 0.75em;">
                         <i class="fa fa-info-circle"></i> 
-                        ${totalScenes} total • ${totalRated} rated (${((totalRated/totalScenes)*100).toFixed(1)}%) • ${scenesWithDates} dated • ${totalAgeEntries} age entries
+                        ${totalScenes} total ՠ${totalRated} rated (${((totalRated/totalScenes)*100).toFixed(1)}%) ՠ${scenesWithDates} dated ՠ${totalAgeEntries} age entries
                     </div>
                 </div>
             </div>
         `;
 
         container.innerHTML = html;
+        
+        // Add event listener for timeline grouping selector
+        const timelineSelector = document.getElementById('timeline-grouping-select');
+        if (timelineSelector) {
+            timelineSelector.addEventListener('change', function(e) {
+                timelineGrouping = parseInt(e.target.value);
+                // Reload the display with new grouping
+                displaySceneStats(container, scenes);
+            });
+        }
+        
+        // Add event listener for age grouping selector
+        const ageSelector = document.getElementById('age-grouping-select');
+        if (ageSelector) {
+            ageSelector.addEventListener('change', function(e) {
+                ageGrouping = parseInt(e.target.value);
+                // Reload the display with new grouping
+                displaySceneStats(container, scenes);
+            });
+        }
     }
 
     function processRatingData(scenes) {
@@ -760,7 +1194,7 @@
             .filter(group => group.count > 0);
     }
 
-    function processMonthlyDataWithZeros(scenes) {
+    function processMonthlyDataWithZeros(scenes, monthsPerBar) {
         // Find date range
         let minYear = 9999, maxYear = 0;
         let minMonth = 12, maxMonth = 1;
@@ -774,12 +1208,15 @@
             }
         });
 
+        // If no dates, return empty
         if (minYear === 9999) return [];
 
+        // Get current date
         const now = new Date();
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth() + 1;
 
+        // Cap max year/month to current date
         if (maxYear > currentYear) {
             maxYear = currentYear;
             maxMonth = currentMonth;
@@ -787,97 +1224,167 @@
             maxMonth = currentMonth;
         }
 
+        // Create map of existing scenes
         const sceneMap = new Map();
         scenes.forEach(s => {
             if (s.date) {
-                const monthKey = `${s.date.year}-${String(s.date.month).padStart(2, '0')}`;
-                if (s.date.year < currentYear || (s.date.year === currentYear && s.date.month <= currentMonth)) {
-                    if (!sceneMap.has(monthKey)) {
-                        sceneMap.set(monthKey, []);
-                    }
-                    sceneMap.get(monthKey).push(s);
+                // Calculate which group this scene belongs to based on monthsPerBar
+                const groupIndex = Math.floor((s.date.year * 12 + s.date.month - 1) / monthsPerBar);
+                const groupKey = `group-${groupIndex}`;
+                
+                if (!sceneMap.has(groupKey)) {
+                    sceneMap.set(groupKey, []);
                 }
+                sceneMap.get(groupKey).push(s);
             }
         });
 
+        // Calculate start and end group indices (inclusive)
+        const startTotalMonths = minYear * 12 + minMonth - 1;
+        const endTotalMonths = maxYear * 12 + maxMonth - 1;
+        
+        const startGroup = Math.floor(startTotalMonths / monthsPerBar);
+        const endGroup = Math.floor((endTotalMonths) / monthsPerBar);
+
+        // Generate all groups in range (including the last one)
         const monthlyData = [];
-        for (let year = minYear; year <= maxYear; year++) {
-            const startMonth = (year === minYear) ? minMonth : 1;
-            const endMonth = (year === maxYear) ? maxMonth : 12;
+        for (let group = startGroup; group <= endGroup; group++) {
+            const groupStartMonth = group * monthsPerBar;
+            const groupStartYear = Math.floor(groupStartMonth / 12);
+            const groupStartMonthOfYear = (groupStartMonth % 12) + 1;
             
-            for (let month = startMonth; month <= endMonth; month++) {
-                const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-                const monthDisplay = `${year}-${String(month).padStart(2, '0')}`;
-                
-                const scenesInMonth = sceneMap.get(monthKey) || [];
-                
-                monthlyData.push({
-                    key: monthKey,
-                    display: monthDisplay,
-                    year: year,
-                    month: month,
-                    count: scenesInMonth.length,
-                    scenes: scenesInMonth.sort((a, b) => {
-                        if (a.date && b.date) {
-                            if (a.date.day && b.date.day) {
-                                return a.date.day - b.date.day;
-                            }
-                        }
-                        return a.title.localeCompare(b.title);
-                    })
-                });
+            // Format the display label
+            let displayLabel;
+            if (monthsPerBar === 1) {
+                displayLabel = `${groupStartYear}-${String(groupStartMonthOfYear).padStart(2, '0')}`;
+            } else if (monthsPerBar === 3) {
+                const quarter = Math.ceil(groupStartMonthOfYear / 3);
+                displayLabel = `${groupStartYear} Q${quarter}`;
+            } else if (monthsPerBar === 6) {
+                const half = groupStartMonthOfYear <= 6 ? 'H1' : 'H2';
+                displayLabel = `${groupStartYear} ${half}`;
+            } else {
+                displayLabel = `${groupStartYear}`;
             }
+            
+            const scenesInGroup = sceneMap.get(`group-${group}`) || [];
+            
+            monthlyData.push({
+                key: `group-${group}`,
+                display: displayLabel,
+                year: groupStartYear,
+                month: groupStartMonthOfYear,
+                count: scenesInGroup.length,
+                scenes: scenesInGroup.sort((a, b) => {
+                    if (a.date && b.date) {
+                        const aTotal = a.date.year * 12 + a.date.month;
+                        const bTotal = b.date.year * 12 + b.date.month;
+                        if (aTotal !== bTotal) return aTotal - bTotal;
+                        if (a.date.day && b.date.day) {
+                            return a.date.day - b.date.day;
+                        }
+                    }
+                    return a.title.localeCompare(b.title);
+                })
+            });
         }
 
         return monthlyData;
     }
 
-    function processAgeDataWithZeros(scenes) {
+    function processAgeDataWithGroupingAndZeros(scenes, yearsPerBar) {
         // Collect all ages from all performers in all scenes, with scene info
-        const ageMap = new Map();
+        const ageEntries = [];
         
         scenes.forEach(scene => {
             if (scene.performers && scene.performers.length > 0) {
                 scene.performers.forEach(performer => {
                     if (performer.age !== null && performer.age > 0) {
-                        const age = performer.age;
-                        if (!ageMap.has(age)) {
-                            ageMap.set(age, []);
-                        }
-                        ageMap.get(age).push({
-                            id: scene.id,
+                        ageEntries.push({
+                            age: performer.age,
+                            sceneId: scene.id,
                             title: scene.title,
                             details: scene.details,
                             image_path: scene.image_path,
                             dateStr: scene.dateStr,
                             performerName: performer.name,
-                            performerAge: age,
+                            performerAge: performer.age,
                             performerCountry: performer.country,
-                            performerCountryCode: performer.countryCode
+                            performerCountryCode: performer.countryCode,
+                            performerFlag: performer.countryFlag,
+                            performerFavorite: performer.favorite
                         });
                     }
                 });
             }
         });
 
-        if (ageMap.size === 0) return [];
+        if (ageEntries.length === 0) return [];
 
         // Find age range
-        const ages = Array.from(ageMap.keys());
+        const ages = ageEntries.map(e => e.age);
         const minAge = Math.min(...ages);
         const maxAge = Math.max(...ages);
         
-        // Create one-year intervals for all ages in range
-        const ageData = [];
-        for (let age = minAge; age <= maxAge; age++) {
-            const scenesAtAge = ageMap.get(age) || [];
-            ageData.push({
-                label: age.toString(),
-                age: age,
-                count: scenesAtAge.length,
-                scenes: scenesAtAge.sort((a, b) => a.title.localeCompare(b.title))
+        // Calculate group boundaries to include all possible ages in range with zero bars (inclusive)
+        const startGroup = Math.floor(minAge / yearsPerBar) * yearsPerBar;
+        const endGroup = Math.ceil(maxAge / yearsPerBar) * yearsPerBar;
+        
+        // Create groups for all intervals in range (including zeros)
+        const ageGroups = new Map();
+        
+        // Initialize all groups with zero counts (including the last one)
+        for (let groupStart = startGroup; groupStart <= endGroup; groupStart += yearsPerBar) {
+            const groupEnd = groupStart + yearsPerBar - 1;
+            const groupLabel = yearsPerBar === 1 ? 
+                `${groupStart}` : 
+                `${groupStart}-${groupEnd}`;
+            
+            ageGroups.set(groupLabel, {
+                label: groupLabel,
+                start: groupStart,
+                end: groupEnd,
+                count: 0,
+                scenes: []
             });
         }
+        
+        // Add entries to groups
+        ageEntries.forEach(entry => {
+            const groupStart = Math.floor(entry.age / yearsPerBar) * yearsPerBar;
+            const groupEnd = groupStart + yearsPerBar - 1;
+            const groupLabel = yearsPerBar === 1 ? 
+                `${groupStart}` : 
+                `${groupStart}-${groupEnd}`;
+            
+            const group = ageGroups.get(groupLabel);
+            if (group) {
+                group.count++;
+                group.scenes.push({
+                    id: entry.sceneId,
+                    title: entry.title,
+                    details: entry.details,
+                    image_path: entry.image_path,
+                    dateStr: entry.dateStr,
+                    performerName: entry.performerName,
+                    performerAge: entry.performerAge,
+                    performerCountry: entry.performerCountry,
+                    performerCountryCode: entry.performerCountryCode,
+                    performerFlag: entry.performerFlag,
+                    performerFavorite: entry.performerFavorite
+                });
+            }
+        });
+
+        // Convert to array and sort by age
+        const ageData = Array.from(ageGroups.values())
+            .map(group => ({
+                label: group.label,
+                age: group.start,
+                count: group.count,
+                scenes: group.scenes.sort((a, b) => a.title.localeCompare(b.title))
+            }))
+            .sort((a, b) => a.age - b.age);
 
         return ageData;
     }
@@ -926,14 +1433,14 @@
 
         return `
             <div style="flex: 1; min-width: 70px; background: var(--card-bg-alt, #3d3d3d); border-radius: 4px; padding: 8px;">
-                <div style="color: #888; font-size: 0.7em;">Total Months</div>
+                <div style="color: #888; font-size: 0.7em;">Total Periods</div>
                 <div style="font-size: 1.1em; font-weight: bold; color: #4a9eff;">${totalMonths}</div>
                 <div style="color: #888; font-size: 0.7em;">with data</div>
             </div>
             <div style="flex: 1; min-width: 70px; background: var(--card-bg-alt, #3d3d3d); border-radius: 4px; padding: 8px;">
                 <div style="color: #888; font-size: 0.7em;">Average</div>
                 <div style="font-size: 1.1em; font-weight: bold; color: #4CAF50;">${avgPerMonth}</div>
-                <div style="color: #4a9eff; font-size: 0.7em;">per month</div>
+                <div style="color: #4a9eff; font-size: 0.7em;">per period</div>
             </div>
             <div style="flex: 1; min-width: 70px; background: var(--card-bg-alt, #3d3d3d); border-radius: 4px; padding: 8px;">
                 <div style="color: #888; font-size: 0.7em;">Busiest</div>
@@ -1015,15 +1522,26 @@
                             </div>
                             <div id="${groupId}" style="display: none; margin-top: 6px; padding: 6px; background: var(--card-bg, #2d2d2d); border-radius: 4px; max-height: 120px; overflow-y: auto;">
                                 <div style="display: flex; flex-wrap: wrap; gap: 3px;">
-                                    ${group.scenes.map(s => `
-                                        <span class="scene-name-tooltip" 
-                                              style="background: var(--card-bg-alt, #3d3d3d); padding: 2px 5px; border-radius: 8px; font-size: 0.7em; cursor: pointer; border: 1px solid var(--border-color, #4d4d4d); display: inline-block;"
-                                              onclick="openScenePage('${s.id}', event)"
-                                              onmouseover="showSceneTooltip('${s.id}', event)"
-                                              onmouseout="hideSceneRatingTooltip()">
-                                            ${s.title.length > 15 ? s.title.substring(0, 13) + '...' : s.title}
-                                        </span>
-                                    `).join('')}
+                                    ${group.scenes.map(s => {
+                                        // Collect unique flags from performers in this scene
+                                        const uniqueFlags = new Set();
+                                        s.performers.forEach(p => {
+                                            if (p.countryFlag) {
+                                                uniqueFlags.add(p.countryFlag);
+                                            }
+                                        });
+                                        const flags = Array.from(uniqueFlags).join('');
+                                        
+                                        return `
+                                            <span class="scene-name-tooltip" 
+                                                  style="background: var(--card-bg-alt, #3d3d3d); padding: 2px 5px; border-radius: 8px; font-size: 0.7em; cursor: pointer; border: 1px solid var(--border-color, #4d4d4d); display: inline-block;"
+                                                  onclick="openScenePage('${s.id}', event)"
+                                                  onmouseover="showSceneTooltip('${s.id}', event)"
+                                                  onmouseout="hideSceneRatingTooltip()">
+                                                ${flags} ${s.title.length > 15 ? s.title.substring(0, 13) + '...' : s.title}
+                                            </span>
+                                        `;
+                                    }).join('')}
                                 </div>
                             </div>
                         </div>
@@ -1043,7 +1561,7 @@
         return `
             <div style="display: flex; gap: 3px; min-width: ${monthlyData.length * 85}px; padding: 5px 0;">
                 ${monthlyData.map((month, index) => {
-                    const height = month.count > 0 ? Math.max(36, (month.count / maxCount) * 90) : 6; // Double height
+                    const height = month.count > 0 ? Math.max(18, (month.count / maxCount) * 45) : 3;
                     const barColor = month.count > 0 ? getMonthColor(month.count, maxCount) : '#444';
                     const monthId = `month-group-${index}`;
                     
@@ -1053,19 +1571,19 @@
                                 ${month.display}
                             </div>
                             
-                            <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 6px;"> <!-- Increased margin -->
-                                <div style="height: 100px; display: flex; flex-direction: column-reverse; align-items: center; width: 100%;"> <!-- Double height container -->
+                            <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 4px;">
+                                <div style="height: 50px; display: flex; flex-direction: column-reverse; align-items: center; width: 100%;">
                                     <div style="width: 30px; height: ${height}px; background: ${barColor}; border-radius: 2px 2px 0 0; cursor: pointer;"
                                          onclick="toggleMonthGroup('${monthId}')">
                                     </div>
                                 </div>
-                                <div style="font-size: 0.65em; color: ${barColor}; margin-top: 4px; font-weight: bold;"> <!-- Increased margin -->
+                                <div style="font-size: 0.65em; color: ${barColor}; margin-top: 2px; font-weight: bold;">
                                     ${month.count}
                                 </div>
                             </div>
                             
                             ${month.count > 0 ? `
-                                <div id="${monthId}" style="display: none; margin-top: 4px; padding: 3px; background: var(--card-bg, #2d2d2d); border-radius: 3px; max-height: 150px; overflow-y: auto;">
+                                <div id="${monthId}" style="display: none; margin-top: 2px; padding: 2px; background: var(--card-bg, #2d2d2d); border-radius: 3px; max-height: 150px; overflow-y: auto;">
                                     <div style="display: flex; flex-direction: column; gap: 2px;">
                                         ${month.scenes.map(s => {
                                             const shortTitle = s.title.length > 12 ? s.title.substring(0, 10) + '..' : s.title;
@@ -1073,11 +1591,11 @@
                                             // Collect unique flags from performers in this scene
                                             const uniqueFlags = new Set();
                                             s.performers.forEach(p => {
-                                                if (p.countryCode) {
-                                                    uniqueFlags.add(p.countryCode);
+                                                if (p.countryFlag) {
+                                                    uniqueFlags.add(p.countryFlag);
                                                 }
                                             });
-                                            const flags = Array.from(uniqueFlags).map(code => getFlagEmoji(code)).join(' ');
+                                            const flags = Array.from(uniqueFlags).join('');
                                             
                                             return `
                                                 <span class="scene-name-tooltip" 
@@ -1093,7 +1611,7 @@
                                 </div>
                             ` : `
                                 <div style="height: 18px; display: flex; align-items: center; justify-content: center; color: #666; font-size: 0.55em; border-top: 1px solid var(--border-color, #4d4d4d);">
-                                    Ø
+                                    ؍
                                 </div>
                             `}
                         </div>
@@ -1103,7 +1621,7 @@
         `;
     }
 
-    function generateAgeBarsWithScenes(ageData, totalAgeEntries) {
+    function generateAgeBarsWithScenesAndZeros(ageData, totalAgeEntries) {
         if (ageData.length === 0) {
             return `<p style="color: #888; text-align: center; padding: 8px; font-size: 0.8em;">No age data</p>`;
         }
@@ -1111,22 +1629,22 @@
         const maxCount = Math.max(...ageData.map(d => d.count));
 
         return `
-            <div style="display: flex; gap: 2px; min-width: ${ageData.length * 60}px; padding: 5px 0;">
+            <div style="display: flex; gap: 2px; min-width: ${ageData.length * 70}px; padding: 5px 0;">
                 ${ageData.map((age, index) => {
-                    const height = age.count > 0 ? Math.max(36, (age.count / maxCount) * 90) : 6; // Already double height
-                    const barColor = getAgeColor(age.age);
+                    const height = age.count > 0 ? Math.max(36, (age.count / maxCount) * 90) : 6;
+                    const barColor = age.count > 0 ? getAgeColor(age.age) : '#444';
                     const ageId = `age-group-${index}`;
-                    const percentage = (age.count / totalAgeEntries) * 100;
+                    const percentage = totalAgeEntries > 0 ? (age.count / totalAgeEntries) * 100 : 0;
                     
                     return `
-                        <div style="display: flex; flex-direction: column; width: 55px; background: var(--card-bg-alt, #3d3d3d); border-radius: 3px; padding: 3px; opacity: ${age.count > 0 ? 1 : 0.6};">
+                        <div style="display: flex; flex-direction: column; width: 65px; background: var(--card-bg-alt, #3d3d3d); border-radius: 3px; padding: 3px; opacity: ${age.count > 0 ? 1 : 0.6};">
                             <div style="font-size: 0.6em; color: #ffd700; font-weight: bold; margin-bottom: 2px; text-align: center;">
                                 ${age.label}
                             </div>
                             
                             <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 6px;">
                                 <div style="height: 100px; display: flex; flex-direction: column-reverse; align-items: center; width: 100%;">
-                                    <div style="width: 25px; height: ${height}px; background: ${barColor}; border-radius: 2px 2px 0 0; cursor: pointer;"
+                                    <div style="width: 30px; height: ${height}px; background: ${barColor}; border-radius: 2px 2px 0 0; cursor: pointer;"
                                          onclick="toggleAgeGroup('${ageId}')">
                                     </div>
                                 </div>
@@ -1143,13 +1661,14 @@
                                             const flag = s.performerCountryCode ? 
                                                 `<span style="margin-right: 2px;">${getFlagEmoji(s.performerCountryCode)}</span>` : 
                                                 '';
+                                            const heartIcon = s.performerFavorite ? '❤️' : '';
                                             return `
                                                 <span class="scene-name-tooltip" 
                                                       style="background: var(--card-bg-alt, #3d3d3d); padding: 1px 2px; border-radius: 2px; font-size: 0.55em; cursor: pointer; border-left: 2px solid ${barColor}; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
                                                       onclick="openScenePage('${s.id}', event)"
                                                       onmouseover="showSceneTooltip('${s.id}', event)"
                                                       onmouseout="hideSceneRatingTooltip()">
-                                                    ${flag} ${shortTitle}
+                                                    ${heartIcon}${flag} ${shortTitle}
                                                 </span>
                                             `;
                                         }).join('')}
@@ -1157,7 +1676,7 @@
                                 </div>
                             ` : `
                                 <div style="height: 18px; display: flex; align-items: center; justify-content: center; color: #666; font-size: 0.5em; border-top: 1px solid var(--border-color, #4d4d4d);">
-                                    Ø
+                                    ؍
                                 </div>
                             `}
                         </div>
@@ -1291,12 +1810,13 @@
         
         const rect = event.target.getBoundingClientRect();
         
+        // Position tooltip above with more space for larger tooltip
         tooltip.style.left = (rect.left + (rect.width / 2) - 175) + 'px';
-        tooltip.style.top = (rect.top - 450) + 'px';
+        tooltip.style.top = (rect.top - 400) + 'px';
         
         titleDisplay.innerHTML = scene.title || 'Untitled';
         
-        dateDisplay.innerHTML = ` ${scene.dateStr || 'No date'}`;
+        dateDisplay.innerHTML = ` 📅${scene.dateStr || 'No date'}`;
         
         if (scene.rating5 !== null) {
             const fullStars = Math.floor(scene.rating5);
@@ -1321,14 +1841,15 @@
             tagsDisplay.innerHTML = '<div style="color: #888;">No tags</div>';
         }
         
-        // Show performers with flag emoji
+        // Show performers with flags and heart icons for favorites
         if (scene.performers && scene.performers.length > 0) {
             performersDisplay.innerHTML = '<div style="color: #ffd700; margin-bottom: 3px;">Performers:</div>' + 
                 scene.performers.map(p => {
                     const ageText = p.age ? ` (${p.age})` : '';
-                    const flagEmoji = p.countryCode ? getFlagEmoji(p.countryCode) : '';
-                    const countryText = p.country ? ` ${flagEmoji}` : '';
-                    return `<div style="margin: 2px 0;"> ${p.name}${ageText}${countryText}</div>`;
+                    const flagEmoji = p.countryFlag || '';
+                    // Use a proper heart emoji instead of text
+                    const heartIcon = p.favorite ? '❤️ ' : '';
+                    return `<div style="margin: 2px 0;">${heartIcon}${flagEmoji} ${p.name}${ageText}</div>`;
                 }).join('');
         } else {
             performersDisplay.innerHTML = '<div style="color: #888;">No performers</div>';
@@ -1340,8 +1861,9 @@
             img.style.display = 'block';
             fallback.style.display = 'none';
             
+            // Reset any previous sizing
             img.style.maxWidth = '100%';
-            img.style.maxHeight = '300px';
+            img.style.maxHeight = '200px';
             img.style.width = 'auto';
             img.style.height = 'auto';
         } else {
